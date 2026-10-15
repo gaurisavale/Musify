@@ -1,0 +1,1154 @@
+<title>Musify Playlist Analyzer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: app shell. Header with source switcher, playlist bar, tab strip, one tab panel visible at a time. Orchid accent, amber highlight, four mood hues */
+:root {
+  --bg: #f3f2f7;
+  --surface: #ffffff;
+  --surface-2: #f8f6fc;
+  --ink: #1b1726;
+  --muted: #5d5770;
+  --line: #dcd8e6;
+  --accent: #8a2fd0;
+  --accent-soft: #efe4fa;
+  --on-accent: #ffffff;
+  --warm: #d9690f;
+  --m-euph: #e08a12;
+  --m-calm: #1f9a8a;
+  --m-tense: #d2384f;
+  --m-blue: #3f6fd6;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14111c; --surface: #1d1928; --surface-2: #231e31; --ink: #f0ecf8; --muted: #a59fb8; --line: #332d44;
+    --accent: #c08af5; --accent-soft: #2e2343; --on-accent: #14111c; --warm: #f2a25c;
+    --m-euph: #f3b24a; --m-calm: #4cc7b5; --m-tense: #f0697e; --m-blue: #7ea2f5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14111c; --surface: #1d1928; --surface-2: #231e31; --ink: #f0ecf8; --muted: #a59fb8; --line: #332d44;
+  --accent: #c08af5; --accent-soft: #2e2343; --on-accent: #14111c; --warm: #f2a25c;
+  --m-euph: #f3b24a; --m-calm: #4cc7b5; --m-tense: #f0697e; --m-blue: #7ea2f5;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap {
+  max-width: 1160px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); margin: 0; line-height: 1.12; text-wrap: balance; }
+p { margin: 0; }
+.label { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.hint { color: var(--muted); font-size: 0.88rem; max-width: 66ch; }
+a { color: var(--accent); }
+
+/* header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; letter-spacing: -0.02em; }
+.brand svg { width: 30px; height: 30px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn {
+  font: 500 0.88rem var(--font-body); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px; position: relative; text-decoration: none;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:focus-visible, label.btn:focus-within, .tab:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+select { font: 500 0.88rem var(--font-body); border-radius: 8px; padding: 8px 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
+
+/* playlist bar */
+.plbar { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; padding-block: 8px 20px; }
+.plbar > * { min-width: 0; }
+@media (max-width: 860px) { .plbar { grid-template-columns: 1fr; } }
+.source { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.pill { font-family: var(--font-mono); font-size: 0.72rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.pill.sample { border-color: var(--warm); color: var(--warm); }
+.pill.live { border-color: var(--m-calm); color: var(--m-calm); }
+.plbar h1 { font-size: clamp(1.8rem, 4.4vw, 3rem); font-weight: 800; letter-spacing: -0.025em; }
+.plbar h1 em { font-style: normal; color: var(--accent); }
+.plbar .sub { margin-top: 10px; color: var(--muted); font-size: 1rem; max-width: 62ch; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(84px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 520px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+.tile { background: var(--surface); padding: 12px 16px; display: grid; gap: 2px; }
+.tile b { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 0.78rem; color: var(--muted); }
+.msg { margin-top: 10px; font-size: 0.9rem; }
+.msg.err { color: var(--m-tense); }
+.msg.ok { color: var(--m-calm); }
+
+/* tabs */
+.tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 5; scrollbar-width: none; }
+.tab { font: 500 0.92rem var(--font-body); padding: 12px 14px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.tab .badge { font-family: var(--font-mono); font-size: 0.68rem; background: var(--warm); color: var(--on-accent); border-radius: 999px; padding: 0 6px; }
+.tabpanel { padding-block: 22px 28px; }
+
+/* grid + panels */
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.grid > * { min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 16px; align-content: start; }
+.panel header { display: grid; gap: 4px; }
+.panel h2 { font-size: 1.2rem; font-weight: 700; }
+.s12 { grid-column: span 12; } .s8 { grid-column: span 8; } .s7 { grid-column: span 7; } .s6 { grid-column: span 6; } .s5 { grid-column: span 5; } .s4 { grid-column: span 4; }
+@media (max-width: 900px) { .s8, .s7, .s6, .s5, .s4 { grid-column: span 12; } }
+
+/* bars */
+.bars { display: grid; gap: 8px; }
+.brow { display: grid; grid-template-columns: minmax(80px, 150px) 1fr 52px; gap: 10px; align-items: center; font-size: 0.88rem; }
+.brow > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { height: 12px; background: var(--accent-soft); border-radius: 3px; overflow: hidden; }
+.fill { height: 100%; background: var(--accent); border-radius: 3px; }
+.fill.warm { background: var(--warm); }
+.brow .v { font-family: var(--font-mono); font-size: 0.8rem; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.brow.best > span:first-child { font-weight: 600; color: var(--warm); }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.meter { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; }
+.meter b { font-family: var(--font-display); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.meter p { font-size: 0.8rem; color: var(--muted); }
+.big { font-family: var(--font-display); font-size: 2.6rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.big small { font-size: 1rem; color: var(--muted); font-weight: 500; }
+
+/* charts */
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart.wide svg { min-width: 560px; }
+svg text { font-family: var(--font-mono); font-size: 10px; fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.8rem; color: var(--muted); }
+.legend i, .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.stack { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
+.stack div { height: 100%; }
+.nofeat { background: var(--surface-2); border: 1px dashed var(--line); border-radius: 10px; padding: 16px; color: var(--muted); font-size: 0.9rem; }
+
+/* insights */
+.insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.insights li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-size: 0.95rem; }
+.insights li::before { content: attr(data-k); font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); border: 1px solid var(--accent); border-radius: 5px; text-align: center; padding: 1px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 0.82rem; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); }
+.chip.out { background: var(--surface-2); border: 1px solid var(--line); }
+
+/* discover */
+.disc-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: end; }
+.mix { display: flex; gap: 6px; flex-wrap: wrap; }
+.mix button { font: 500 0.82rem var(--font-body); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.mix button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.songs { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.song { display: grid; grid-template-columns: 24px 48px minmax(0, 1fr) minmax(0, 220px) 70px; gap: 14px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.song:last-child { border-bottom: 0; }
+.song:hover { background: var(--surface-2); }
+.song input { width: 18px; height: 18px; accent-color: var(--accent); }
+.cover { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; display: block; }
+.song .tt { min-width: 0; }
+.song .tt b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song .tt span { font-size: 0.84rem; color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.why { font-size: 0.8rem; color: var(--muted); min-width: 0; }
+.why b { color: var(--ink); font-weight: 500; }
+.match { display: grid; gap: 4px; justify-items: end; }
+.match span { font-family: var(--font-mono); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.match .track { width: 60px; height: 6px; }
+@media (max-width: 720px) {
+  .song { grid-template-columns: 24px 44px minmax(0, 1fr) 52px; }
+  .song .why { grid-column: 3 / 5; grid-row: 2; }
+  .cover { width: 44px; height: 44px; }
+}
+.savebar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.savebar input[type=text] { font: 500 0.9rem var(--font-body); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 0; width: 280px; max-width: 100%; }
+.loading { padding: 28px; text-align: center; color: var(--muted); }
+
+/* flow */
+.flowtop { display: flex; gap: 28px; flex-wrap: wrap; align-items: end; }
+.tlist { overflow: auto; max-height: 440px; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.85rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--surface); }
+td.t { white-space: normal; min-width: 180px; }
+td.t small { display: block; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* compare */
+.cmp-head { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
+.vs { display: grid; gap: 10px; }
+.vsrow { display: grid; grid-template-columns: minmax(90px, 120px) 1fr 1fr; gap: 10px; align-items: center; font-size: 0.85rem; }
+.vsrow .track { height: 10px; }
+.vsrow .fill.b { background: var(--warm); }
+.vsrow .cell { display: grid; grid-template-columns: 1fr 44px; gap: 6px; align-items: center; }
+.vsrow .cell span { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); text-align: right; }
+
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); }
+.steps b { color: var(--ink); font-weight: 600; }
+code { font-family: var(--font-mono); font-size: 0.85em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+body.dragging .dropzone { display: flex; }
+.dropzone { display: none; position: fixed; inset: 0; z-index: 10; background: var(--bg); opacity: .94; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 1.6rem; border: 3px dashed var(--accent); }
+footer { padding-block: 24px 36px; color: var(--muted); font-size: 0.82rem; border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: no-preference) { .tabpanel:not([hidden]) { animation: fade .25s ease-out; } }
+@keyframes fade { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+
+<div class="dropzone" aria-hidden="true">Drop your playlist CSV</div>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <svg viewBox="0 0 30 30" aria-hidden="true">
+        <rect x="3" y="11" width="3" height="8" rx="1.5" style="fill:var(--accent)"/>
+        <rect x="9" y="6" width="3" height="18" rx="1.5" style="fill:var(--accent)"/>
+        <rect x="15" y="2" width="3" height="26" rx="1.5" style="fill:var(--warm)"/>
+        <rect x="21" y="8" width="3" height="14" rx="1.5" style="fill:var(--accent)"/>
+        <rect x="27" y="12" width="2" height="6" rx="1" style="fill:var(--accent)"/>
+      </svg>
+      Musify
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnSample" type="button">Demo playlist</button>
+      <label class="btn" for="fileA">Upload CSV<input type="file" id="fileA" accept=".csv,text/csv"></label>
+      <select id="plSelect" aria-label="Choose one of your Spotify playlists" hidden></select>
+      <button class="btn primary" id="btnConnect" type="button">Connect Spotify</button>
+    </div>
+  </div>
+
+  <section class="plbar">
+    <div>
+      <div class="source" id="source"></div>
+      <h1 id="headline">Loading…</h1>
+      <p class="sub" id="subline"></p>
+      <p class="msg" id="msgA" hidden></p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <div class="tabs" role="tablist" aria-label="Analysis">
+    <button class="tab" role="tab" id="t-overview" aria-controls="p-overview" data-tab="overview">Overview</button>
+    <button class="tab" role="tab" id="t-taste" aria-controls="p-taste" data-tab="taste">Taste</button>
+    <button class="tab" role="tab" id="t-mood" aria-controls="p-mood" data-tab="mood">Mood &amp; sound</button>
+    <button class="tab" role="tab" id="t-discover" aria-controls="p-discover" data-tab="discover">Discover <span class="badge" id="discBadge" hidden></span></button>
+    <button class="tab" role="tab" id="t-flow" aria-controls="p-flow" data-tab="flow">Smart order</button>
+    <button class="tab" role="tab" id="t-compare" aria-controls="p-compare" data-tab="compare">Compare</button>
+    <button class="tab" role="tab" id="t-about" aria-controls="p-about" data-tab="about">How it works</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section class="tabpanel" role="tabpanel" id="p-overview" aria-labelledby="t-overview">
+    <div class="grid">
+      <div class="panel s7">
+        <header><h2>What this playlist says</h2></header>
+        <ul class="insights" id="insightList"></ul>
+      </div>
+      <div class="panel s5">
+        <header><h2>At a glance</h2></header>
+        <div id="glance"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TASTE -->
+  <section class="tabpanel" role="tabpanel" id="p-taste" aria-labelledby="t-taste" hidden>
+    <div class="grid">
+      <div class="panel s7">
+        <header><h2>Top genres</h2><p class="hint">Share of tracks tagged with each genre. A track can carry several tags.</p></header>
+        <div class="bars" id="genres"></div>
+      </div>
+      <div class="panel s5">
+        <header><h2>Top artists</h2></header>
+        <div class="bars" id="artists"></div>
+        <div class="meters" id="tasteMeters"></div>
+      </div>
+      <div class="panel s6">
+        <header><h2>Release decades</h2></header>
+        <div class="bars" id="decades"></div>
+      </div>
+      <div class="panel s6">
+        <header><h2>Popularity &amp; length</h2></header>
+        <div id="popWrap"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOOD -->
+  <section class="tabpanel" role="tabpanel" id="p-mood" aria-labelledby="t-mood" hidden>
+    <div class="grid">
+      <div class="panel s7">
+        <header><h2>Mood map</h2><p class="hint">Each dot is a track, placed by positivity (valence) and energy. The quadrant decides its mood.</p></header>
+        <div id="moodWrap"></div>
+      </div>
+      <div class="panel s5">
+        <header><h2>Mood mix</h2></header>
+        <div id="moodMix"></div>
+      </div>
+      <div class="panel s7">
+        <header><h2>Tempo</h2><p class="hint">Tracks per 10 BPM band.</p></header>
+        <div id="tempoWrap"></div>
+      </div>
+      <div class="panel s5">
+        <header><h2>Sound signature</h2><p class="hint">Average audio profile against the closest playlist archetype.</p></header>
+        <div id="radarWrap"></div>
+      </div>
+      <div class="panel s12">
+        <header><h2>Closest playlist archetypes</h2><p class="hint">Similarity between this playlist's average sound and six reference profiles for common playlist types.</p></header>
+        <div class="bars" id="archetypes"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISCOVER -->
+  <section class="tabpanel" role="tabpanel" id="p-discover" aria-labelledby="t-discover" hidden>
+    <div class="grid">
+      <div class="s12" style="display:grid;gap:16px">
+        <div class="disc-head">
+          <div style="display:grid;gap:6px;min-width:0">
+            <h2 style="font-size:1.5rem">Songs like this playlist</h2>
+            <p class="hint" id="discHint">Scored on shared artists, genres, era and sound. Pick the ones you want and save them as a new playlist.</p>
+          </div>
+          <div class="mix" role="group" aria-label="Suggestion mix">
+            <button type="button" data-mix="balanced" aria-pressed="true">Balanced</button>
+            <button type="button" data-mix="familiar" aria-pressed="false">More from my artists</button>
+            <button type="button" data-mix="new" aria-pressed="false">New artists only</button>
+          </div>
+        </div>
+        <div id="discWrap"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOW -->
+  <section class="tabpanel" role="tabpanel" id="p-flow" aria-labelledby="t-flow" hidden>
+    <div class="panel">
+      <header><h2>Reorder for a better listening flow</h2><p class="hint">Musify rebuilds the track order along an energy arc (warm up, peak, cool down) while keeping tempo jumps small and neighboring keys harmonically compatible on the Camelot wheel.</p></header>
+      <div id="flowWrap"></div>
+    </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section class="tabpanel" role="tabpanel" id="p-compare" aria-labelledby="t-compare" hidden>
+    <div class="panel">
+      <header><h2 id="cmpTitle">Compare</h2><p class="hint">Load a second playlist, such as a friend's export or another of yours, to see how close the two are.</p></header>
+      <div class="actions">
+        <button class="btn" id="btnSampleB" type="button">Use demo gym mix</button>
+        <label class="btn" for="fileB">Upload second CSV<input type="file" id="fileB" accept=".csv,text/csv"></label>
+        <select id="cmpSelect" aria-label="Compare with one of your Spotify playlists" hidden></select>
+      </div>
+      <p class="msg" id="msgB" hidden></p>
+      <div id="cmpWrap" style="display:grid;gap:18px"></div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section class="tabpanel" role="tabpanel" id="p-about" aria-labelledby="t-about" hidden>
+    <div class="grid">
+      <div class="panel s6">
+        <header><h2>Three ways in</h2></header>
+        <ol class="steps">
+          <li><b>Connect Spotify.</b> Signs in with OAuth (PKCE, no server), lists your playlists, and lets you save suggestions straight to your account.</li>
+          <li><b>Upload a CSV.</b> Export any playlist from <a href="https://exportify.net" target="_blank" rel="noopener">exportify.net</a>. Columns are matched by name, and audio feature columns unlock mood, tempo and smart order.</li>
+          <li><b>Demo playlist.</b> Fictional tracks with full audio data, so every feature can be explored.</li>
+        </ol>
+      </div>
+      <div class="panel s6">
+        <header><h2>Under the hood</h2></header>
+        <ul class="steps">
+          <li><b>Genre diversity</b> is normalized Shannon entropy over genre tags.</li>
+          <li><b>Mood</b> comes from the valence and energy quadrant of each track.</li>
+          <li><b>Archetype match</b> is Euclidean distance between the playlist's mean feature vector and six reference profiles.</li>
+          <li><b>Suggestions</b> pull candidates from Spotify search seeded by your top artists and genres, then rank them with a weighted score of artist affinity, genre overlap, release era and sound, with a cap per artist for variety.</li>
+          <li><b>Smart order</b> is a greedy search that follows a target energy curve and penalizes tempo jumps and key clashes.</li>
+        </ul>
+        <p class="hint">Started as a Python and Spotipy notebook in Google Colab. Rebuilt as a client-side web app in plain JavaScript.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>Musify · Plain HTML, CSS and JavaScript · Not affiliated with Spotify. Demo playlists use fictional artists and tracks.</footer>
+</div>
+
+<script>
+/* ===== CONFIG: paste your Spotify app Client ID to enable live mode when hosted ===== */
+var CONFIG = { SPOTIFY_CLIENT_ID: "" };
+
+(function () {
+"use strict";
+var $ = function (s) { return document.querySelector(s); };
+var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+function mean(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : 0; }
+function std(a) { if (a.length < 2) return 0; var m = mean(a); return Math.sqrt(mean(a.map(function (x) { return (x - m) * (x - m); }))); }
+function quant(a, q) { var s = a.slice().sort(function (x, y) { return x - y; }); if (!s.length) return 0; return s[Math.min(s.length - 1, Math.floor(q * s.length))]; }
+function pct(x) { return Math.round(x * 100); }
+function countBy(list) { var m = {}; list.forEach(function (k) { m[k] = (m[k] || 0) + 1; }); return Object.keys(m).map(function (k) { return [k, m[k]]; }).sort(function (a, b) { return b[1] - a[1]; }); }
+function norm(s) { return String(s || "").toLowerCase().replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/[^a-z0-9]+/g, " ").trim(); }
+function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+var store = {
+  get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+function showMsg(el, text, kind) { el.textContent = text; el.className = "msg " + (kind || "err"); el.hidden = !text; }
+
+/* ---------- demo data (fictional) ---------- */
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+var PROFILES = {
+  "indie pop":     { e: [.42, .74], v: [.45, .82], d: [.5, .74],  t: [98, 128],  a: [.08, .45], pop: [35, 70], u: "pop" },
+  "hip hop":       { e: [.55, .8],  v: [.35, .7],  d: [.72, .9],  t: [84, 100],  a: [.04, .25], pop: [50, 85], u: "rap" },
+  "r&b":           { e: [.32, .58], v: [.3, .6],   d: [.6, .8],   t: [70, 98],   a: [.15, .5],  pop: [45, 80], u: "soul" },
+  "synthwave":     { e: [.6, .86],  v: [.3, .6],   d: [.5, .7],   t: [100, 120], a: [0, .08],   pop: [25, 55], u: "electronic" },
+  "lo-fi beats":   { e: [.18, .38], v: [.3, .62],  d: [.55, .75], t: [70, 90],   a: [.5, .86],  pop: [20, 50], u: "chill" },
+  "dance pop":     { e: [.7, .93],  v: [.55, .9],  d: [.7, .9],   t: [116, 128], a: [0, .15],   pop: [60, 92], u: "pop" },
+  "classic soul":  { e: [.4, .65],  v: [.55, .9],  d: [.55, .75], t: [92, 118],  a: [.25, .6],  pop: [40, 70], u: "soul" },
+  "drum and bass": { e: [.86, .98], v: [.3, .6],   d: [.45, .6],  t: [170, 176], a: [0, .05],   pop: [30, 60], u: "electronic" },
+  "trap":          { e: [.62, .86], v: [.2, .5],   d: [.7, .86],  t: [130, 150], a: [.02, .2],  pop: [55, 88], u: "rap" },
+  "alt rock":      { e: [.72, .94], v: [.3, .62],  d: [.38, .58], t: [120, 156], a: [0, .12],   pop: [40, 75], u: "rock" },
+  "dream pop":     { e: [.3, .55],  v: [.3, .6],   d: [.4, .6],   t: [90, 120],  a: [.2, .6],   pop: [25, 55], u: "pop" },
+  "neo soul":      { e: [.3, .55],  v: [.4, .7],   d: [.6, .78],  t: [75, 100],  a: [.3, .6],   pop: [30, 65], u: "soul" },
+  "jazz rap":      { e: [.4, .62],  v: [.4, .7],   d: [.65, .82], t: [85, 98],   a: [.2, .5],   pop: [30, 60], u: "rap" },
+  "chillwave":     { e: [.4, .62],  v: [.35, .65], d: [.5, .7],   t: [95, 115],  a: [.05, .3],  pop: [20, 50], u: "electronic" }
+};
+var W1 = ["Neon","Paper","Velvet","Midnight","Golden","Static","Glass","Slow","Summer","Electric","Quiet","Wild","Silver","Heavy","Low","Lucid","Open","Late","Blue","Northern","Soft","Hollow","Burning","Lost","Amber","Second","Little","Cold","Rare","Distant"];
+var W2 = ["Hearts","Avenue","Signals","Tides","Lights","Rooms","Motion","Fever","Dreams","Weather","Satellite","Habits","Gravity","Echoes","Mornings","Coast","Pulse","Letters","Garden","Highway","Arcade","Season","Hours","Frequency","Bloom","Static","Window","Waves","Orbit","Ritual"];
+function buildSet(seed, plan, used) {
+  var r = rng(seed); used = used || {};
+  function R(a) { return a[0] + (a[1] - a[0]) * r(); }
+  function pick(a) { return a[Math.floor(r() * a.length)]; }
+  var tracks = [];
+  plan.forEach(function (p) {
+    var prof = PROFILES[p[0]];
+    for (var i = 0; i < p[1]; i++) {
+      var name, guard = 0; do { name = pick(W1) + " " + pick(W2); guard++; } while (used[name] && guard < 200); used[name] = 1;
+      var artist = r() < 0.45 ? p[2][0] : pick(p[2]);
+      tracks.push({
+        id: "demo-" + hash(name + artist), name: name, artists: [artist], genres: [p[0], prof.u],
+        popularity: Math.round(R(prof.pop)), durationMs: Math.round(R([150, 265]) * 1000),
+        year: Math.round(R(p[3])), dance: R(prof.d), energy: R(prof.e), valence: R(prof.v),
+        tempo: Math.round(R(prof.t)), key: Math.floor(r() * 12), mode: r() < 0.55 ? 1 : 0, acoustic: R(prof.a)
+      });
+    }
+  });
+  for (var i = tracks.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = tracks[i]; tracks[i] = tracks[j]; tracks[j] = t; }
+  return tracks;
+}
+var USED = {};
+function sampleA() {
+  return { title: "Weekend Rotation", source: "sample", tracks: buildSet(7, [
+    ["indie pop", 10, ["Juniper Vale", "The Low Tides", "Coastline Kids"], [2015, 2025]],
+    ["hip hop", 7, ["Kairo", "Ayo Marlow"], [2016, 2025]],
+    ["r&b", 6, ["Mila Okafor", "Indigo Rae"], [2014, 2024]],
+    ["synthwave", 5, ["Velvet Arcade", "Halcyon Drive"], [2012, 2023]],
+    ["lo-fi beats", 6, ["Oso Lento", "Mono Garden"], [2018, 2025]],
+    ["dance pop", 4, ["Nova Ruiz"], [2019, 2025]],
+    ["classic soul", 3, ["The Brass Lanterns", "Dolores King"], [1966, 1979]]
+  ], USED) };
+}
+function sampleB() {
+  return { title: "Gym Mix", source: "sample", tracks: buildSet(42, [
+    ["dance pop", 8, ["Nova Ruiz", "Jett Avalon"], [2018, 2025]],
+    ["trap", 8, ["Kid Meridian", "Saffron Ash"], [2017, 2025]],
+    ["drum and bass", 6, ["Tide Theory", "Ghost Atlas"], [2014, 2024]],
+    ["hip hop", 6, ["Kairo", "Rook & Rye"], [2012, 2025]],
+    ["alt rock", 4, ["Echo Hollow"], [2005, 2020]]
+  ], {}) };
+}
+var CATALOG = null;
+function demoCatalog() {
+  if (CATALOG) return CATALOG;
+  CATALOG = buildSet(99, [
+    ["indie pop", 10, ["Juniper Vale", "Coastline Kids", "Paper Moons", "Lake Avery"], [2016, 2025]],
+    ["dream pop", 8, ["Sora Lane", "Pale Harbor", "Wren Alley"], [2015, 2025]],
+    ["hip hop", 8, ["Kairo", "Ayo Marlow", "Dex Calloway"], [2015, 2025]],
+    ["jazz rap", 6, ["Monk Theory", "Lyle Brooks"], [2014, 2024]],
+    ["r&b", 7, ["Mila Okafor", "Indigo Rae", "Sienna Clarke"], [2016, 2025]],
+    ["neo soul", 6, ["Amara Field", "June Hollis"], [2012, 2024]],
+    ["synthwave", 6, ["Velvet Arcade", "Night Circuit", "Chrome Lily"], [2013, 2024]],
+    ["chillwave", 6, ["Palm Static", "Hazel Hours"], [2012, 2023]],
+    ["lo-fi beats", 7, ["Oso Lento", "Tea & Tape", "Kumo"], [2018, 2025]],
+    ["dance pop", 6, ["Nova Ruiz", "Bright Season"], [2019, 2025]],
+    ["classic soul", 5, ["The Brass Lanterns", "Earl Whitaker"], [1964, 1978]],
+    ["trap", 5, ["Kid Meridian", "Saffron Ash"], [2018, 2025]],
+    ["drum and bass", 4, ["Tide Theory"], [2016, 2024]]
+  ], USED);
+  return CATALOG;
+}
+
+/* ---------- CSV ---------- */
+function parseCSV(text) {
+  var rows = [], row = [], f = "", q = false;
+  text = text.replace(/^﻿/, "");
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); f = ""; if (row.some(function (x) { return x.trim() !== ""; })) rows.push(row); row = []; }
+    else f += c;
+  }
+  row.push(f); if (row.some(function (x) { return x.trim() !== ""; })) rows.push(row);
+  return rows;
+}
+var COLS = {
+  id: ["track uri", "spotify uri", "uri", "track id", "id"],
+  name: ["track name", "name", "track", "title", "song"],
+  artists: ["artist name(s)", "artist names", "artist name", "artists", "artist"],
+  genres: ["artist genres", "genres", "genre"],
+  popularity: ["popularity"],
+  duration: ["duration (ms)", "duration_ms", "duration"],
+  year: ["release date", "album release date", "release_date", "year"],
+  dance: ["danceability"], energy: ["energy"], valence: ["valence"], tempo: ["tempo", "bpm"],
+  key: ["key"], mode: ["mode"], acoustic: ["acousticness"]
+};
+function findCol(h, cands, exactOnly) {
+  for (var i = 0; i < cands.length; i++) { var x = h.indexOf(cands[i]); if (x >= 0) return x; }
+  if (exactOnly) return -1;
+  for (i = 0; i < cands.length; i++) for (var j = 0; j < h.length; j++) {
+    if (h[j].indexOf(cands[i]) < 0) continue;
+    if (cands[i] === "name" && (h[j].indexOf("artist") >= 0 || h[j].indexOf("album") >= 0 || h[j].indexOf("label") >= 0)) continue;
+    return j;
+  }
+  return -1;
+}
+function fromCSV(text, fname) {
+  var rows = parseCSV(text);
+  if (rows.length < 2) throw new Error("That file has no data rows. Export the playlist again and upload the CSV.");
+  var h = rows[0].map(function (x) { return x.trim().toLowerCase(); });
+  var idx = {}; Object.keys(COLS).forEach(function (k) { idx[k] = findCol(h, COLS[k], k === "id"); });
+  if (idx.name < 0) throw new Error("No track name column found. The CSV needs a column called Track Name, Name or Title.");
+  function num(r, k) { if (idx[k] < 0) return null; var v = parseFloat(r[idx[k]]); return isFinite(v) ? v : null; }
+  var tracks = rows.slice(1).map(function (r) {
+    var name = (r[idx.name] || "").trim(); if (!name) return null;
+    var art = idx.artists >= 0 ? (r[idx.artists] || "") : "";
+    var artists = art.split(art.indexOf(";") >= 0 ? ";" : ",").map(function (s) { return s.trim(); }).filter(Boolean);
+    var genres = idx.genres >= 0 ? (r[idx.genres] || "").split(/[;,]/).map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean) : [];
+    var dur = null;
+    if (idx.duration >= 0) {
+      var raw = (r[idx.duration] || "").trim();
+      if (raw.indexOf(":") >= 0) { var p = raw.split(":").map(Number); dur = (p[0] * 60 + (p[1] || 0)) * 1000; }
+      else { var d = parseFloat(raw); if (isFinite(d)) dur = d > 10000 ? d : d * 1000; }
+    }
+    var yr = null; if (idx.year >= 0) { var m = String(r[idx.year] || "").match(/\d{4}/); if (m) yr = +m[0]; }
+    var rid = idx.id >= 0 ? String(r[idx.id] || "").trim() : "";
+    var t = { id: rid ? rid.replace("spotify:track:", "") : "csv-" + hash(name + art), name: name, artists: artists, genres: genres,
+      popularity: num(r, "popularity"), durationMs: dur, year: yr, dance: num(r, "dance"), energy: num(r, "energy"), valence: num(r, "valence"),
+      tempo: num(r, "tempo"), key: num(r, "key"), mode: num(r, "mode"), acoustic: num(r, "acoustic") };
+    if (t.tempo === 0) t.tempo = null;
+    return t;
+  }).filter(Boolean);
+  if (!tracks.length) throw new Error("No tracks could be read from that file.");
+  return { title: fname.replace(/\.csv$/i, "").replace(/[_-]+/g, " "), source: "upload", tracks: tracks };
+}
+
+/* ---------- analysis ---------- */
+var ARCH = [
+  { name: "Workout", v: [.70, .88, .58, .05, .78] }, { name: "Party", v: [.80, .80, .72, .10, .55] },
+  { name: "Road trip", v: [.60, .70, .65, .20, .50] }, { name: "Late-night chill", v: [.62, .42, .38, .38, .30] },
+  { name: "Focus", v: [.48, .30, .32, .68, .28] }, { name: "Heartbreak", v: [.50, .38, .20, .52, .33] }
+];
+var NEIGH = {
+  "indie pop": ["dream pop", "bedroom pop", "indie folk"], "hip hop": ["jazz rap", "boom bap", "alternative hip hop"],
+  "r&b": ["neo soul", "alternative r&b", "quiet storm"], "synthwave": ["chillwave", "darkwave", "italo disco"],
+  "lo-fi beats": ["jazzhop", "ambient", "downtempo"], "dance pop": ["electropop", "nu disco", "house"],
+  "classic soul": ["motown", "funk", "northern soul"], "trap": ["drill", "phonk", "cloud rap"],
+  "drum and bass": ["liquid funk", "jungle", "breakbeat"], "alt rock": ["post-punk", "indie rock", "garage rock"],
+  "pop": ["synthpop", "art pop"], "rap": ["conscious hip hop", "uk hip hop"], "rock": ["shoegaze", "post-rock"],
+  "electronic": ["idm", "uk garage"], "soul": ["gospel", "funk"], "house": ["deep house", "afro house"],
+  "k-pop": ["j-pop", "city pop"], "bollywood": ["indian indie", "sufi", "filmi"], "desi hip hop": ["punjabi pop", "indian indie"],
+  "country": ["americana", "bluegrass"], "jazz": ["bossa nova", "soul jazz"], "edm": ["future bass", "melodic house"]
+};
+var MOODS = [
+  { name: "Upbeat", desc: "positive, high energy", c: "var(--m-euph)" },
+  { name: "Content", desc: "positive, low energy", c: "var(--m-calm)" },
+  { name: "Intense", desc: "dark, high energy", c: "var(--m-tense)" },
+  { name: "Melancholy", desc: "dark, low energy", c: "var(--m-blue)" }
+];
+function moodOf(t) { var hv = t.valence >= .5, he = t.energy >= .5; return hv && he ? 0 : hv ? 1 : he ? 2 : 3; }
+function tempoN(bpm) { return clamp((bpm - 60) / 120, 0, 1); }
+function hasF(t) { return t.energy != null && t.valence != null && t.dance != null; }
+function vec(t) { return [t.dance, t.energy, t.valence, t.acoustic == null ? .3 : t.acoustic, t.tempo == null ? .45 : tempoN(t.tempo)]; }
+function dist(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += (a[i] - b[i]) * (a[i] - b[i]); return Math.sqrt(s); }
+var MAJ = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1], MIN = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10];
+function camelot(t) { if (t.key == null || t.key < 0 || t.key > 11) return null; return t.mode === 0 ? { n: MIN[t.key], l: "A" } : { n: MAJ[t.key], l: "B" }; }
+function keyOk(a, b) { if (!a || !b) return true; if (a.n === b.n) return true; if (a.l === b.l) { var d = Math.abs(a.n - b.n); return d === 1 || d === 11; } return false; }
+function tcost(a, b) {
+  var c = Math.abs(a.energy - b.energy) * 1.2;
+  if (a.tempo && b.tempo) { var d = Math.min(Math.abs(a.tempo - b.tempo), Math.abs(a.tempo - 2 * b.tempo), Math.abs(2 * a.tempo - b.tempo)); c += Math.min(d, 40) / 40 * 0.8; }
+  return c + (keyOk(a.cam, b.cam) ? 0 : 0.35);
+}
+function flowScore(list) { if (list.length < 2) return 100; var s = 0; for (var i = 1; i < list.length; i++) s += tcost(list[i - 1], list[i]); return clamp(Math.round(100 * (1 - (s / (list.length - 1)) / 1.6)), 0, 100); }
+function smartOrder(list) {
+  var n = list.length; if (n < 3) return list.slice();
+  var es = list.map(function (t) { return t.energy; }), lo = quant(es, .15), hi = quant(es, .92);
+  function target(i) { var x = i / (n - 1); return x < .7 ? lo + (hi - lo) * (x / .7) : hi - (hi - lo) * .65 * ((x - .7) / .3); }
+  var left = list.slice(), out = [];
+  left.sort(function (a, b) { return Math.abs(a.energy - target(0)) - Math.abs(b.energy - target(0)); });
+  out.push(left.shift());
+  for (var i = 1; i < n; i++) {
+    var prev = out[out.length - 1], best = 0, bc = Infinity;
+    for (var j = 0; j < left.length; j++) { var c = tcost(prev, left[j]) + Math.abs(left[j].energy - target(i)) * 1.6; if (c < bc) { bc = c; best = j; } }
+    out.push(left.splice(best, 1)[0]);
+  }
+  return out;
+}
+
+function analyze(pl) {
+  var T = pl.tracks, n = T.length, A = { pl: pl, n: n };
+  A.feat = T.filter(hasF);
+  A.hasFeat = A.feat.length >= Math.max(3, n * 0.5);
+  A.feat.forEach(function (t) { t.cam = camelot(t); t.mood = moodOf(t); });
+  var durs = T.map(function (t) { return t.durationMs; }).filter(function (x) { return x != null; });
+  A.totalMin = durs.reduce(function (s, x) { return s + x; }, 0) / 60000; A.avgLen = durs.length ? mean(durs) / 1000 : 0;
+  A.artistCounts = countBy([].concat.apply([], T.map(function (t) { return t.artists; })));
+  A.artistMap = {}; A.artistCounts.forEach(function (a) { A.artistMap[norm(a[0])] = a[1]; });
+  A.genreCounts = countBy([].concat.apply([], T.map(function (t) { return t.genres.filter(function (g, i, a) { return a.indexOf(g) === i; }); })));
+  A.genreMap = {}; A.genreCounts.forEach(function (g) { A.genreMap[g[0]] = g[1]; });
+  var gTotal = A.genreCounts.reduce(function (s, g) { return s + g[1]; }, 0);
+  A.diversity = A.genreCounts.length > 1 ? -A.genreCounts.reduce(function (s, g) { var p = g[1] / gTotal; return s + p * Math.log(p); }, 0) / Math.log(A.genreCounts.length) : 0;
+  var slots = A.artistCounts.reduce(function (s, a) { return s + a[1]; }, 0);
+  A.repetition = slots ? 1 - A.artistCounts.length / slots : 0;
+  A.pops = T.map(function (t) { return t.popularity; }).filter(function (x) { return x != null; });
+  A.popMean = mean(A.pops); A.popStd = std(A.pops);
+  A.years = T.map(function (t) { return t.year; }).filter(function (x) { return x != null && x > 1900; });
+  A.medYear = A.years.length ? quant(A.years, .5) : null;
+  A.decades = countBy(A.years.map(function (y) { return Math.floor(y / 10) * 10 + "s"; })).sort(function (a, b) { return parseInt(a[0], 10) - parseInt(b[0], 10); });
+  A.explicitShare = T.some(function (t) { return t.explicit != null; }) ? T.filter(function (t) { return t.explicit; }).length / n : null;
+  A.known = {}; T.forEach(function (t) { A.known[t.id] = 1; A.known[norm(t.name) + "|" + norm(t.artists[0])] = 1; });
+  if (A.hasFeat) {
+    var F = A.feat;
+    A.avg = { dance: mean(F.map(function (t) { return t.dance; })), energy: mean(F.map(function (t) { return t.energy; })), valence: mean(F.map(function (t) { return t.valence; })),
+      acoustic: mean(F.filter(function (t) { return t.acoustic != null; }).map(function (t) { return t.acoustic; })) };
+    if (!isFinite(A.avg.acoustic)) A.avg.acoustic = .3;
+    A.tempos = F.map(function (t) { return t.tempo; }).filter(function (x) { return x; });
+    A.tempoMean = mean(A.tempos); A.tempoCV = A.tempos.length ? std(A.tempos) / A.tempoMean : 0;
+    A.moodCounts = [0, 0, 0, 0]; F.forEach(function (t) { A.moodCounts[t.mood]++; });
+    A.moodScore = Math.round(A.avg.valence * 100);
+    A.vec = [A.avg.dance, A.avg.energy, A.avg.valence, A.avg.acoustic, A.tempos.length ? tempoN(A.tempoMean) : .45];
+    A.arch = ARCH.map(function (a) { return { name: a.name, v: a.v, sim: clamp(1 - dist(A.vec, a.v) / 0.9, 0, 1) }; }).sort(function (a, b) { return b.sim - a.sim; });
+    var ds = F.map(function (t) { return { t: t, d: dist(vec(t), A.vec) }; });
+    var dm = mean(ds.map(function (x) { return x.d; })), dsd = std(ds.map(function (x) { return x.d; }));
+    A.outliers = ds.filter(function (x) { return x.d > dm + 1.4 * dsd; }).sort(function (a, b) { return b.d - a.d; }).slice(0, 5).map(function (x) { return x.t; });
+    A.order = smartOrder(F); A.flowBefore = flowScore(F); A.flowAfter = flowScore(A.order);
+  }
+  var ex = []; A.genreCounts.slice(0, 5).forEach(function (g) { (NEIGH[g[0]] || []).forEach(function (x) { if (!A.genreMap[x] && ex.indexOf(x) < 0) ex.push(x); }); });
+  A.explore = ex.slice(0, 8);
+  return A;
+}
+
+/* ---------- recommender ---------- */
+function scoreCandidate(c, A) {
+  var topA = A.artistCounts.length ? A.artistCounts[0][1] : 1, topG = A.genreCounts.length ? A.genreCounts[0][1] : 1;
+  var aScore = 0, aName = null;
+  c.artists.forEach(function (a) { var k = A.artistMap[norm(a)]; if (k && k / topA > aScore) { aScore = k / topA; aName = a; } });
+  var gScore = 0, gBest = null, gBestV = 0;
+  (c.genres || []).forEach(function (g) { var k = A.genreMap[g]; if (k) { gScore += k / topG; if (!gBest) { gBestV = k; gBest = g; } } });
+  gScore = Math.min(1, gScore);
+  var eScore = (c.year && A.medYear) ? clamp(1 - Math.abs(c.year - A.medYear) / 20, 0, 1) : null;
+  var sScore = (A.hasFeat && hasF(c)) ? clamp(1 - dist(vec(c), A.vec) / 0.9, 0, 1) : null;
+  var parts = [[aScore, .30], [gScore, .32]];
+  if (eScore != null) parts.push([eScore, .10]);
+  if (sScore != null) parts.push([sScore, .28]);
+  var wsum = parts.reduce(function (s, p) { return s + p[1]; }, 0);
+  var score = parts.reduce(function (s, p) { return s + p[0] * p[1]; }, 0) / wsum;
+  if (!aName) score = score * 0.92 + 0.08 * (gScore > 0 ? 1 : 0);
+  var why = [];
+  if (aName) why.push("More from <b>" + esc(aName) + "</b>, who has " + A.artistMap[norm(aName)] + " track" + (A.artistMap[norm(aName)] > 1 ? "s" : "") + " here");
+  else if (gBest) why.push("New artist in <b>" + esc(gBest) + "</b>, your " + (A.genreCounts[0][0] === gBest ? "top genre" : "genre with " + gBestV + " tracks"));
+  else if (c.seedGenre) why.push("Found via your <b>" + esc(c.seedGenre) + "</b> tracks");
+  if (sScore != null && sScore > .75) why.push(pct(sScore) + "% sound match");
+  else if (eScore != null && eScore > .8 && !aName) why.push("same era");
+  return { t: c, score: clamp(score, 0, 1), familiar: !!aName, why: why.join(" · ") };
+}
+function rankCandidates(cands, A, mix) {
+  var seen = {}, scored = [];
+  cands.forEach(function (c) {
+    var k1 = c.id, k2 = norm(c.name) + "|" + norm(c.artists[0]);
+    if (A.known[k1] || A.known[k2] || seen[k1] || seen[k2]) return;
+    seen[k1] = seen[k2] = 1; scored.push(scoreCandidate(c, A));
+  });
+  if (mix === "familiar") scored = scored.filter(function (s) { return s.familiar; });
+  if (mix === "new") scored = scored.filter(function (s) { return !s.familiar; });
+  scored.sort(function (a, b) { return b.score - a.score; });
+  var perArtist = {}, out = [], cap = mix === "familiar" ? 4 : 2;
+  scored.forEach(function (s) { var a = norm(s.t.artists[0]); perArtist[a] = (perArtist[a] || 0) + 1; if (perArtist[a] <= cap) out.push(s); });
+  if (mix === "balanced") {
+    var fam = out.filter(function (s) { return s.familiar; }), nw = out.filter(function (s) { return !s.familiar; }), mixed = [];
+    while ((fam.length || nw.length) && mixed.length < 20) { if (nw.length) mixed.push(nw.shift()); if (fam.length && mixed.length < 20) mixed.push(fam.shift()); }
+    return mixed.sort(function (a, b) { return b.score - a.score; });
+  }
+  return out.slice(0, 20);
+}
+
+/* ---------- Spotify (PKCE, client-side) ---------- */
+var SP = { token: null, exp: 0, refresh: null, me: null, playlists: [] };
+var REDIRECT = location.origin + location.pathname;
+var SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public";
+function b64url(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function randStr(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (x) { return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[x % 62]; }).join(""); }
+function liveConfigured() { return !!CONFIG.SPOTIFY_CLIENT_ID && /^https?:/.test(location.protocol) && location.origin !== "null"; }
+function login() {
+  var verifier = randStr(64);
+  store.set("musify_verifier", verifier);
+  crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)).then(function (d) {
+    var p = new URLSearchParams({ response_type: "code", client_id: CONFIG.SPOTIFY_CLIENT_ID, scope: SCOPES, code_challenge_method: "S256", code_challenge: b64url(d), redirect_uri: REDIRECT });
+    location.href = "https://accounts.spotify.com/authorize?" + p.toString();
+  });
+}
+function saveTok(j) {
+  SP.token = j.access_token; SP.exp = Date.now() + (j.expires_in - 60) * 1000; if (j.refresh_token) SP.refresh = j.refresh_token;
+  store.set("musify_tok", JSON.stringify({ t: SP.token, e: SP.exp, r: SP.refresh }));
+}
+function tokenReq(body) {
+  return fetch("https://accounts.spotify.com/api/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) })
+    .then(function (r) { if (!r.ok) throw new Error("Spotify sign-in failed (" + r.status + "). Try Connect Spotify again."); return r.json(); }).then(saveTok);
+}
+function refreshTok() { if (!SP.refresh) return Promise.reject(new Error("Session expired. Connect Spotify again.")); return tokenReq({ grant_type: "refresh_token", refresh_token: SP.refresh, client_id: CONFIG.SPOTIFY_CLIENT_ID }); }
+function api(path, opts, retried) {
+  opts = opts || {};
+  var go = function () {
+    var url = path.indexOf("http") === 0 ? path : "https://api.spotify.com/v1" + path;
+    var h = { Authorization: "Bearer " + SP.token }; if (opts.body) h["Content-Type"] = "application/json";
+    return fetch(url, { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined }).then(function (r) {
+      if (r.status === 401 && !retried) return refreshTok().then(function () { return api(path, opts, true); });
+      if (r.status === 429 && !retried) { var w = (+r.headers.get("Retry-After") || 2) * 1000; return new Promise(function (res) { setTimeout(res, Math.min(w, 8000)); }).then(function () { return api(path, opts, true); }); }
+      if (r.status === 403) throw new Error("Spotify refused this request. While the app is in development mode, only accounts on its allowlist can sign in. Ask the site owner to add your Spotify email.");
+      if (!r.ok) throw new Error("Spotify error " + r.status + " on " + path.split("?")[0]);
+      return r.status === 204 ? null : r.json();
+    });
+  };
+  if (SP.token && Date.now() > SP.exp && !retried) return refreshTok().then(go);
+  return go();
+}
+function pool(items, n, fn) {
+  var i = 0, out = [];
+  function next() { if (i >= items.length) return Promise.resolve(); var k = i++; return Promise.resolve(fn(items[k])).then(function (v) { out[k] = v; }, function () { out[k] = null; }).then(next); }
+  var ws = []; for (var j = 0; j < Math.min(n, items.length); j++) ws.push(next());
+  return Promise.all(ws).then(function () { return out; });
+}
+function convTrack(t) {
+  var imgs = (t.album && t.album.images) || [];
+  var img = imgs.length ? imgs[imgs.length - 1].url : null;
+  var m = t.album && String(t.album.release_date || "").match(/\d{4}/);
+  return { id: t.id, uri: t.uri, name: t.name, artists: (t.artists || []).map(function (a) { return a.name; }), artistIds: (t.artists || []).map(function (a) { return a.id; }),
+    genres: [], durationMs: t.duration_ms || null, year: m ? +m[0] : null, explicit: !!t.explicit, popularity: t.popularity != null ? t.popularity : null,
+    img: img, url: t.external_urls && t.external_urls.spotify };
+}
+var GENRE_CACHE = {};
+function artistGenres(ids) {
+  var todo = ids.filter(function (id) { return id && !(id in GENRE_CACHE); });
+  return pool(todo, 4, function (id) { return api("/artists/" + id).then(function (a) { GENRE_CACHE[id] = (a && a.genres) || []; }); })
+    .then(function () { var out = {}; ids.forEach(function (id) { out[id] = GENRE_CACHE[id] || []; }); return out; });
+}
+function loadLivePlaylist(id) {
+  var meta = SP.playlists.filter(function (p) { return p.id === id; })[0] || { name: "Playlist" };
+  var tracks = [], url = "/playlists/" + id + "/items?limit=50";
+  function page() {
+    if (!url || tracks.length >= 400) return Promise.resolve();
+    return api(url).then(function (r) {
+      (r.items || []).forEach(function (it) { var t = it.item || it.track; if (t && t.id && (t.type === "track" || !t.type)) tracks.push(convTrack(t)); });
+      url = r.next || null; return page();
+    });
+  }
+  return page().then(function () {
+    if (!tracks.length) throw new Error("No tracks came back for that playlist. Spotify only shares the contents of playlists you own or collaborate on.");
+    var counts = {}; tracks.forEach(function (t) { t.artistIds.forEach(function (a) { counts[a] = (counts[a] || 0) + 1; }); });
+    var top = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 30);
+    return artistGenres(top).then(function (g) {
+      tracks.forEach(function (t) { var gs = []; t.artistIds.forEach(function (a) { (g[a] || []).forEach(function (x) { if (gs.indexOf(x) < 0) gs.push(x); }); }); t.genres = gs; });
+      return { title: meta.name, source: "live", tracks: tracks, spotifyId: id };
+    });
+  });
+}
+function liveCandidates(A, round) {
+  var off = (round || 0) * 10, qs = [];
+  A.artistCounts.slice(0, 6).forEach(function (a) { qs.push({ q: 'artist:"' + a[0] + '"' }); });
+  A.genreCounts.slice(0, 4).forEach(function (g) { qs.push({ q: 'genre:"' + g[0] + '"', genre: g[0] }); });
+  A.explore.slice(0, 2).forEach(function (g) { qs.push({ q: 'genre:"' + g + '"', genre: g }); });
+  if (!A.genreCounts.length) A.artistCounts.slice(6, 10).forEach(function (a) { qs.push({ q: 'artist:"' + a[0] + '"' }); });
+  return pool(qs, 3, function (q) {
+    return api("/search?type=track&limit=10&offset=" + off + "&q=" + encodeURIComponent(q.q)).then(function (r) {
+      return ((r.tracks && r.tracks.items) || []).filter(Boolean).map(function (t) { var c = convTrack(t); if (q.genre) { c.genres = [q.genre]; c.seedGenre = q.genre; } return c; });
+    });
+  }).then(function (lists) {
+    var all = [].concat.apply([], lists.filter(Boolean));
+    var ids = []; all.forEach(function (c) { (c.artistIds || []).slice(0, 1).forEach(function (a) { if (ids.indexOf(a) < 0) ids.push(a); }); });
+    return artistGenres(ids.slice(0, 40)).then(function (g) {
+      all.forEach(function (c) { var a = c.artistIds && c.artistIds[0]; (g[a] || []).forEach(function (x) { if (c.genres.indexOf(x) < 0) c.genres.push(x); }); });
+      return all;
+    });
+  });
+}
+function savePlaylist(name, uris) {
+  return api("/me/playlists", { method: "POST", body: { name: name, description: "Suggested by Musify from " + STATE.A.pl.title, public: false } }).then(function (p) {
+    var chunks = []; for (var i = 0; i < uris.length; i += 100) chunks.push(uris.slice(i, i + 100));
+    return chunks.reduce(function (pr, ch) { return pr.then(function () { return api("/playlists/" + p.id + "/items", { method: "POST", body: { uris: ch } }); }); }, Promise.resolve()).then(function () { return p; });
+  });
+}
+function initSpotify() {
+  var q = new URLSearchParams(location.search), code = q.get("code"), err = q.get("error");
+  var saved = store.get("musify_tok");
+  if (saved) { try { var s = JSON.parse(saved); SP.token = s.t; SP.exp = s.e; SP.refresh = s.r; } catch (e) {} }
+  var start = Promise.resolve();
+  if (err) { history.replaceState(null, "", REDIRECT + location.hash); showMsg($("#msgA"), "Spotify sign-in was cancelled."); }
+  if (code && liveConfigured()) {
+    history.replaceState(null, "", REDIRECT + location.hash);
+    start = tokenReq({ grant_type: "authorization_code", code: code, redirect_uri: REDIRECT, client_id: CONFIG.SPOTIFY_CLIENT_ID, code_verifier: store.get("musify_verifier") || "" });
+  }
+  return start.then(function () {
+    if (!SP.token || !liveConfigured()) return false;
+    return api("/me").then(function (me) {
+      SP.me = me;
+      var pls = [], url = "/me/playlists?limit=50";
+      function page() { if (!url || pls.length >= 200) return Promise.resolve(); return api(url).then(function (r) { pls = pls.concat((r.items || []).filter(Boolean)); url = r.next; return page(); }); }
+      return page().then(function () {
+        SP.playlists = pls.filter(function (p) { return (p.owner && p.owner.id === me.id) || p.collaborative; });
+        renderConnected(); return true;
+      });
+    });
+  }).catch(function (e) { SP.token = null; store.del("musify_tok"); showMsg($("#msgA"), e.message); return false; });
+}
+function renderConnected() {
+  var b = $("#btnConnect");
+  b.textContent = "Disconnect " + (SP.me.display_name || "Spotify"); b.classList.remove("primary");
+  var opts = '<option value="">Your playlists (' + SP.playlists.length + ')</option>' + SP.playlists.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>"; }).join("");
+  $("#plSelect").innerHTML = opts; $("#plSelect").hidden = false;
+  $("#cmpSelect").innerHTML = '<option value="">Compare with one of yours</option>' + SP.playlists.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>"; }).join("");
+  $("#cmpSelect").hidden = false;
+}
+
+/* ---------- charts ---------- */
+function bars(el, items, opts) {
+  opts = opts || {};
+  var max = Math.max.apply(null, items.map(function (i) { return i[1]; }).concat([1]));
+  el.innerHTML = items.map(function (it, i) {
+    var w = (it[1] / (opts.max || max)) * 100;
+    return '<div class="brow' + (opts.bestFirst && i === 0 ? " best" : "") + '"><span title="' + esc(it[0]) + '">' + esc(it[0]) + '</span><div class="track"><div class="fill' + ((opts.warmTop && i === 0) ? " warm" : "") + '" style="width:' + w.toFixed(1) + '%"></div></div><span class="v">' + esc(it[2] != null ? it[2] : it[1]) + "</span></div>";
+  }).join("") || '<p class="hint">No data for this in the current playlist.</p>';
+}
+function noFeat(what) {
+  return '<div class="nofeat">No audio features for this playlist, so ' + what + ' isn\'t available. Spotify stopped giving audio features to new apps, so live playlists don\'t include them. Load the demo playlist, or upload a CSV that has energy, valence, danceability and tempo columns.</div>';
+}
+function moodSVG(A) {
+  var W = 360, H = 330, L = 34, Tp = 12, S = 290;
+  var g = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Scatter plot of tracks by valence and energy">';
+  g += '<rect x="' + L + '" y="' + Tp + '" width="' + S + '" height="' + S + '" rx="6" style="fill:var(--surface-2);stroke:var(--line)"/>';
+  g += '<line x1="' + (L + S / 2) + '" y1="' + Tp + '" x2="' + (L + S / 2) + '" y2="' + (Tp + S) + '" style="stroke:var(--line)" stroke-dasharray="3 4"/>';
+  g += '<line x1="' + L + '" y1="' + (Tp + S / 2) + '" x2="' + (L + S) + '" y2="' + (Tp + S / 2) + '" style="stroke:var(--line)" stroke-dasharray="3 4"/>';
+  [["Intense", L + 8, Tp + 16, "start"], ["Upbeat", L + S - 8, Tp + 16, "end"], ["Melancholy", L + 8, Tp + S - 8, "start"], ["Content", L + S - 8, Tp + S - 8, "end"]]
+    .forEach(function (q) { g += '<text x="' + q[1] + '" y="' + q[2] + '" text-anchor="' + q[3] + '">' + q[0].toUpperCase() + "</text>"; });
+  A.feat.forEach(function (t) {
+    g += '<circle cx="' + (L + t.valence * S).toFixed(1) + '" cy="' + (Tp + (1 - t.energy) * S).toFixed(1) + '" r="5" style="fill:' + MOODS[t.mood].c + ';fill-opacity:.85;stroke:var(--surface);stroke-width:1.2"><title>' + esc(t.name) + " · " + esc(t.artists.join(", ")) + " · valence " + t.valence.toFixed(2) + ", energy " + t.energy.toFixed(2) + "</title></circle>";
+  });
+  g += '<text x="' + (L + S / 2) + '" y="' + (H - 6) + '" text-anchor="middle">VALENCE (POSITIVITY) →</text>';
+  g += '<text x="12" y="' + (Tp + S / 2) + '" text-anchor="middle" transform="rotate(-90 12 ' + (Tp + S / 2) + ')">ENERGY →</text>';
+  return g + "</svg>";
+}
+function tempoSVG(A) {
+  var bins = []; for (var b = 60; b < 200; b += 10) bins.push([b, 0]);
+  A.tempos.forEach(function (t) { bins[clamp(Math.floor((t - 60) / 10), 0, bins.length - 1)][1]++; });
+  var max = Math.max.apply(null, bins.map(function (x) { return x[1]; }).concat([1]));
+  var W = 560, H = 220, L = 30, B = 28, Tp = 14, cw = (W - L - 10) / bins.length;
+  var g = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Histogram of track tempos">';
+  var steps = Math.min(4, max);
+  for (var k = 0; k <= steps; k++) { var v = Math.round(max * k / steps), y = H - B - (v / max) * (H - B - Tp); g += '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + y + '" y2="' + y + '" style="stroke:var(--line)"/><text x="' + (L - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + v + "</text>"; }
+  bins.forEach(function (bn, i) {
+    var h = (bn[1] / max) * (H - B - Tp), x = L + i * cw + 3;
+    if (bn[1]) g += '<rect x="' + x + '" y="' + (H - B - h) + '" width="' + (cw - 6) + '" height="' + h + '" rx="3" style="fill:var(--accent)"><title>' + bn[0] + "–" + (bn[0] + 9) + " BPM: " + bn[1] + " tracks</title></rect>";
+    if (i % 2 === 0) g += '<text x="' + (L + i * cw + cw / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + bn[0] + "</text>";
+  });
+  var mx = L + ((A.tempoMean - 60) / 10) * cw;
+  if (mx > L && mx < W - 60) g += '<line x1="' + mx + '" x2="' + mx + '" y1="' + Tp + '" y2="' + (H - B) + '" style="stroke:var(--warm)" stroke-width="2" stroke-dasharray="4 3"/><text x="' + (mx + 4) + '" y="' + (Tp + 8) + '" style="fill:var(--warm)">avg ' + Math.round(A.tempoMean) + "</text>";
+  return g + "</svg>";
+}
+function radarSVG(vA, vB, labA, labB) {
+  var labels = ["Dance", "Energy", "Positivity", "Acoustic", "Tempo"], W = 320, H = 280, cx = 160, cy = 142, R = 100;
+  function pt(i, r) { var a = -Math.PI / 2 + i * 2 * Math.PI / 5; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; }
+  var g = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Radar chart of average audio features">';
+  [.25, .5, .75, 1].forEach(function (s) { g += '<polygon points="' + labels.map(function (_, i) { return pt(i, R * s).join(","); }).join(" ") + '" style="fill:none;stroke:var(--line)"/>'; });
+  labels.forEach(function (l, i) { var p = pt(i, R), q = pt(i, R + 18); g += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0] + '" y2="' + p[1] + '" style="stroke:var(--line)"/><text x="' + q[0] + '" y="' + (q[1] + 3) + '" text-anchor="middle">' + l.toUpperCase() + "</text>"; });
+  function poly(v, col, dash, op) { return '<polygon points="' + v.map(function (x, i) { return pt(i, R * x).join(","); }).join(" ") + '" style="fill:' + col + ';fill-opacity:' + op + ';stroke:' + col + '" stroke-width="2"' + (dash ? ' stroke-dasharray="5 4"' : "") + "/>"; }
+  g += poly(vB, "var(--warm)", true, .06) + poly(vA, "var(--accent)", false, .22) + "</svg>";
+  return '<div class="chart">' + g + '</div><div class="legend"><span><i style="background:var(--accent)"></i>' + esc(labA) + '</span><span><i style="background:var(--warm)"></i>' + esc(labB) + "</span></div>";
+}
+function flowSVG(before, after) {
+  var n = before.length, W = 760, H = 200, L = 30, B = 24, Tp = 10;
+  function x(i) { return L + i * (W - L - 10) / Math.max(1, n - 1); }
+  function y(e) { return Tp + (1 - e) * (H - B - Tp); }
+  var g = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Energy across the playlist, current order versus smart order">';
+  [0, .5, 1].forEach(function (v) { g += '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + y(v) + '" y2="' + y(v) + '" style="stroke:var(--line)"/><text x="' + (L - 6) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + "</text>"; });
+  function line(list, col, w, dash) { return '<polyline points="' + list.map(function (t, i) { return x(i).toFixed(1) + "," + y(t.energy).toFixed(1); }).join(" ") + '" style="fill:none;stroke:' + col + '" stroke-width="' + w + '"' + (dash ? ' stroke-dasharray="4 4"' : "") + ' stroke-linejoin="round"/>'; }
+  g += line(before, "var(--muted)", 1.5, true) + line(after, "var(--accent)", 2.5, false);
+  g += '<text x="' + L + '" y="' + (H - 6) + '">TRACK 1</text><text x="' + (W - 10) + '" y="' + (H - 6) + '" text-anchor="end">TRACK ' + n + "</text>";
+  return g + "</svg>";
+}
+function coverHTML(t) {
+  if (t.img) return '<img class="cover" src="' + esc(t.img) + '" alt="" loading="lazy">';
+  var h = hash(t.name + (t.artists[0] || "")), a = h % 360, b = (a + 40 + (h >> 9) % 80) % 360;
+  return '<div class="cover" aria-hidden="true" style="background:linear-gradient(' + (h % 180) + 'deg,hsl(' + a + ' 55% 55%),hsl(' + b + ' 60% 35%))"></div>';
+}
+
+/* ---------- render ---------- */
+var STATE = { A: null, B: null, mix: "balanced", sugg: null, cands: null, round: 0, picked: {} };
+
+function render() {
+  var A = STATE.A, pl = A.pl;
+  var pill = pl.source === "sample" ? '<span class="pill sample">Demo data · fictional tracks</span>' : pl.source === "live" ? '<span class="pill live">Live from Spotify</span>' : '<span class="pill">Uploaded CSV</span>';
+  $("#source").innerHTML = pill + '<span class="pill">' + A.n + " tracks</span>";
+  var top = A.genreCounts[0];
+  if (A.hasFeat) {
+    $("#headline").innerHTML = "<em>" + esc(pl.title) + "</em> sounds like a " + esc(A.arch[0].name.toLowerCase()) + " playlist";
+    var dm = A.moodCounts.indexOf(Math.max.apply(null, A.moodCounts));
+    $("#subline").textContent = pct(A.moodCounts[dm] / A.feat.length) + "% of tracks land in the " + MOODS[dm].name.toLowerCase() + " zone, average tempo is " + Math.round(A.tempoMean || 0) + " BPM" + (top ? ", and " + top[0] + " leads the genres." : ".");
+  } else {
+    $("#headline").innerHTML = "<em>" + esc(pl.title) + "</em>" + (top ? " runs on " + esc(top[0]) : " decoded");
+    $("#subline").textContent = A.n + " tracks from " + A.artistCounts.length + " artists" + (A.years.length ? ", released between " + Math.min.apply(null, A.years) + " and " + Math.max.apply(null, A.years) : "") + ".";
+  }
+  var hrs = A.totalMin >= 60;
+  $("#tiles").innerHTML = [[A.n, "tracks"], [A.totalMin ? (hrs ? (A.totalMin / 60).toFixed(1) : Math.round(A.totalMin)) : "–", hrs ? "hours" : "minutes"], [A.artistCounts.length, "artists"], [A.genreCounts.length || "–", "genres"]]
+    .map(function (t) { return '<div class="tile"><b>' + t[0] + "</b><span>" + t[1] + "</span></div>"; }).join("");
+
+  renderInsights(A);
+  var gl = '<div class="meters">' +
+    '<div class="meter"><span class="label">Genre diversity</span><b>' + (A.genreCounts.length ? pct(A.diversity) : "–") + '</b><p>' + (!A.genreCounts.length ? "No genre data" : A.diversity > .85 ? "Very eclectic" : A.diversity > .65 ? "Balanced mix" : "Focused taste") + "</p></div>" +
+    '<div class="meter"><span class="label">Mood score</span><b>' + (A.hasFeat ? A.moodScore : "–") + '</b><p>' + (A.hasFeat ? (A.moodScore > 55 ? "Leans bright" : A.moodScore < 45 ? "Leans dark" : "Neutral") : "Needs audio data") + "</p></div>" +
+    '<div class="meter"><span class="label">Median year</span><b>' + (A.medYear || "–") + '</b><p>' + (A.decades.length ? A.decades.length + " decade" + (A.decades.length > 1 ? "s" : "") + " covered" : "No release dates") + "</p></div>" +
+    '<div class="meter"><span class="label">Artist repetition</span><b>' + pct(A.repetition) + '%</b><p>' + (A.repetition > .5 ? "Loyal to a few" : A.repetition > .25 ? "Some favorites" : "Mostly one-offs") + "</p></div></div>";
+  if (A.hasFeat) gl += '<div><span class="label">Mood mix</span><div class="stack" style="margin-top:8px">' + MOODS.map(function (m, i) { return A.moodCounts[i] ? '<div title="' + m.name + '" style="width:' + (A.moodCounts[i] / A.feat.length * 100) + "%;background:" + m.c + '"></div>' : ""; }).join("") + '</div><div class="legend" style="margin-top:8px">' + MOODS.map(function (m, i) { return "<span><i style=\"background:" + m.c + "\"></i>" + m.name + " " + pct(A.moodCounts[i] / A.feat.length) + "%</span>"; }).join("") + "</div></div>";
+  gl += '<div><span class="label">Explore next</span><div class="chips" style="margin-top:8px">' + (A.explore.length ? A.explore.map(function (g) { return '<span class="chip">' + esc(g) + "</span>"; }).join("") : '<span class="hint">No genre data to build from.</span>') + "</div></div>";
+  $("#glance").innerHTML = gl;
+
+  bars($("#genres"), A.genreCounts.slice(0, 10).map(function (g) { return [g[0], g[1], pct(g[1] / A.n) + "%"]; }), { warmTop: true });
+  bars($("#artists"), A.artistCounts.slice(0, 7).map(function (a) { return [a[0], a[1], a[1]]; }));
+  $("#tasteMeters").innerHTML = "";
+  bars($("#decades"), A.decades.map(function (d) { return [d[0], d[1], pct(d[1] / A.years.length) + "%"]; }));
+  var pw = '<div class="meters"><div class="meter"><span class="label">Avg length</span><b>' + (A.avgLen ? Math.floor(A.avgLen / 60) + ":" + ("0" + Math.round(A.avgLen % 60)).slice(-2) : "–") + "</b><p>minutes per track</p></div>";
+  if (A.pops.length) pw += '<div class="meter"><span class="label">Popularity</span><b>' + Math.round(A.popMean) + '</b><p>± ' + A.popStd.toFixed(1) + " · " + (A.popMean > 68 ? "mainstream" : A.popMean > 45 ? "hits and deep cuts" : "deep cuts") + "</p></div>";
+  if (A.explicitShare != null) pw += '<div class="meter"><span class="label">Explicit</span><b>' + pct(A.explicitShare) + '%</b><p>of tracks</p></div>';
+  pw += "</div>";
+  if (!A.pops.length) pw += '<p class="hint">' + (A.pl.source === "live" ? "Spotify no longer shares popularity scores with new apps." : "No popularity column in this file.") + "</p>";
+  $("#popWrap").innerHTML = pw;
+
+  if (A.hasFeat) {
+    $("#moodWrap").innerHTML = '<div class="chart">' + moodSVG(A) + "</div>";
+    var tot = A.feat.length;
+    $("#moodMix").innerHTML = '<div><span class="label">Mood score</span><div class="big">' + A.moodScore + '<small> / 100</small></div><p class="hint">Average positivity. Above 50 leans happy, below leans dark.</p></div>' +
+      '<div class="bars">' + MOODS.map(function (m, i) { return '<div class="brow"><span><i class="dot" style="background:' + m.c + '"></i>' + m.name + '</span><div class="track"><div class="fill" style="width:' + (A.moodCounts[i] / tot * 100) + "%;background:" + m.c + '"></div></div><span class="v">' + pct(A.moodCounts[i] / tot) + "%</span></div>"; }).join("") + "</div>";
+    $("#tempoWrap").innerHTML = (A.tempos.length ? '<div class="chart wide">' + tempoSVG(A) + "</div>" : "") +
+      '<div class="meters"><div class="meter"><span class="label">Average tempo</span><b>' + (A.tempos.length ? Math.round(A.tempoMean) : "–") + '</b><p>beats per minute</p></div><div class="meter"><span class="label">Tempo consistency</span><b>' + (A.tempos.length ? clamp(Math.round(100 * (1 - A.tempoCV / .5)), 0, 100) : "–") + '</b><p>' + (A.tempoCV < .15 ? "Steady pace" : A.tempoCV < .28 ? "Some variety" : "Big swings") + "</p></div></div>";
+    $("#radarWrap").innerHTML = radarSVG(A.vec, A.arch[0].v, "This playlist", A.arch[0].name + " profile");
+    bars($("#archetypes"), A.arch.map(function (a) { return [a.name, a.sim, pct(a.sim) + "%"]; }), { max: 1, warmTop: true, bestFirst: true });
+  } else {
+    $("#moodWrap").innerHTML = noFeat("the mood map"); $("#moodMix").innerHTML = '<p class="hint">Needs audio features.</p>';
+    $("#tempoWrap").innerHTML = '<p class="hint">Needs audio features.</p>'; $("#radarWrap").innerHTML = '<p class="hint">Needs audio features.</p>';
+    $("#archetypes").innerHTML = '<p class="hint">Needs audio features.</p>';
+  }
+  renderFlow(A);
+  renderCompare();
+  STATE.sugg = null; STATE.cands = null; STATE.round = 0; STATE.picked = {};
+  loadSuggestions();
+}
+
+function renderInsights(A) {
+  var L = [], top = A.genreCounts[0];
+  if (top) L.push(["G", "<b>" + esc(top[0]) + "</b> appears on " + pct(top[1] / A.n) + "% of tracks. Genre diversity is " + pct(A.diversity) + "/100, " + (A.diversity > .8 ? "an eclectic playlist that crosses a lot of scenes." : A.diversity > .6 ? "a balanced spread with a clear center." : "a tightly focused taste.")]);
+  if (A.artistCounts[0]) L.push(["A", "<b>" + esc(A.artistCounts[0][0]) + "</b> is the most repeated artist with " + A.artistCounts[0][1] + " track" + (A.artistCounts[0][1] > 1 ? "s" : "") + ". " + (A.repetition > .4 ? "A small core of artists carries the playlist." : "Most artists show up once or twice, which keeps it fresh.")]);
+  if (A.hasFeat) {
+    var dm = A.moodCounts.indexOf(Math.max.apply(null, A.moodCounts));
+    L.push(["M", "Dominant mood is <b>" + MOODS[dm].name.toLowerCase() + "</b> (" + MOODS[dm].desc + "), with a mood score of " + A.moodScore + "/100."]);
+    if (A.tempos.length) L.push(["T", "Average tempo is <b>" + Math.round(A.tempoMean) + " BPM</b>. " + (A.tempoCV < .15 ? "The pace barely changes, good for focus or running." : A.tempoCV < .28 ? "Pace shifts a fair amount between tracks." : "Pace swings hard, so track order matters a lot.")]);
+    L.push(["S", "Closest archetype is <b>" + A.arch[0].name.toLowerCase() + "</b> at " + pct(A.arch[0].sim) + "%, then " + A.arch[1].name.toLowerCase() + " at " + pct(A.arch[1].sim) + "%."]);
+    if (A.flowAfter > A.flowBefore) L.push(["F", "Smart order lifts the flow score from <b>" + A.flowBefore + " to " + A.flowAfter + "</b>."]);
+    if (A.outliers.length) L.push(["O", "Odd one out: <b>" + esc(A.outliers[0].name) + "</b> by " + esc(A.outliers[0].artists[0] || "") + " sounds furthest from the rest."]);
+  }
+  if (A.years.length) { var old = A.years.filter(function (y) { return y < new Date().getFullYear() - 15; }).length; L.push(["E", "Median release year is <b>" + A.medYear + "</b>. " + (old ? pct(old / A.years.length) + "% of tracks are over 15 years old." : "Everything here is fairly recent.")]); }
+  if (A.pops.length) L.push(["P", "Average popularity is <b>" + Math.round(A.popMean) + "</b>" + (A.popMean < 45 ? ", a listener who digs for lesser-known music." : A.popMean > 68 ? ", mostly chart material." : ", a mix of hits and deeper cuts.")]);
+  $("#insightList").innerHTML = L.map(function (l) { return '<li data-k="' + l[0] + '"><span>' + l[1] + "</span></li>"; }).join("");
+}
+
+/* ---------- discover ---------- */
+function loadSuggestions() {
+  var A = STATE.A, wrap = $("#discWrap");
+  if (A.pl.source === "sample") { STATE.cands = demoCatalog(); drawSuggestions(); return; }
+  if (!SP.token) {
+    $("#discBadge").hidden = true;
+    wrap.innerHTML = '<div class="panel"><h2>Connect Spotify to get real song suggestions</h2><p class="hint">Suggestions for your own music come from Spotify search, seeded by this playlist\'s top artists and genres. ' + (liveConfigured() ? "" : "Live mode isn't set up in this preview, so try the demo playlist to see how suggestions work.") + '</p><div class="actions">' + (liveConfigured() ? '<button class="btn primary" type="button" data-act="connect">Connect Spotify</button>' : "") + '<button class="btn" type="button" data-act="demo">Try with demo playlist</button></div></div>';
+    return;
+  }
+  wrap.innerHTML = '<div class="loading">Searching Spotify for songs like ' + esc(A.pl.title) + "…</div>";
+  var me = STATE.A;
+  liveCandidates(A, STATE.round).then(function (c) {
+    if (STATE.A !== me) return;
+    STATE.cands = (STATE.round ? (STATE.cands || []) : []).concat(c); drawSuggestions();
+  }).catch(function (e) { if (STATE.A === me) wrap.innerHTML = '<div class="nofeat">' + esc(e.message) + "</div>"; });
+}
+function drawSuggestions() {
+  var A = STATE.A, wrap = $("#discWrap"), live = A.pl.source !== "sample";
+  STATE.sugg = rankCandidates(STATE.cands || [], A, STATE.mix);
+  var S = STATE.sugg;
+  $("#discBadge").textContent = S.length; $("#discBadge").hidden = !S.length;
+  if (!S.length) { wrap.innerHTML = '<div class="nofeat">No new songs found for this mix. Try another mix' + (live ? " or load more." : ".") + "</div>"; return; }
+  if (!Object.keys(STATE.picked).length) S.slice(0, 12).forEach(function (s) { STATE.picked[s.t.id] = 1; });
+  var html = '<ul class="songs">' + S.map(function (s, i) {
+    var t = s.t, id = "pick-" + i;
+    return '<li class="song"><input type="checkbox" id="' + id + '" data-id="' + esc(t.id) + '"' + (STATE.picked[t.id] ? " checked" : "") + ' aria-label="Include ' + esc(t.name) + '">' +
+      coverHTML(t) + '<label class="tt" for="' + id + '"><b>' + esc(t.name) + "</b><span>" + esc(t.artists.join(", ")) + (t.year ? " · " + t.year : "") + "</span></label>" +
+      '<div class="why">' + s.why + (t.url ? ' · <a href="' + esc(t.url) + '" target="_blank" rel="noopener">Listen</a>' : "") + "</div>" +
+      '<div class="match"><span>' + pct(s.score) + '%</span><div class="track"><div class="fill' + (s.familiar ? "" : " warm") + '" style="width:' + pct(s.score) + '%"></div></div></div></li>';
+  }).join("") + "</ul>";
+  var n = S.filter(function (s) { return STATE.picked[s.t.id]; }).length;
+  html += '<div class="savebar"><div style="display:grid;gap:4px;min-width:0"><span class="label" id="pickCount">' + n + ' selected</span>' +
+    '<input type="text" id="plName" aria-label="New playlist name" value="Musify picks: ' + esc(A.pl.title) + '"></div><div class="actions">' +
+    (live ? '<button class="btn" type="button" data-act="more">Load more</button>' : "") +
+    '<button class="btn primary" type="button" data-act="save">Save to Spotify</button></div></div><p class="msg" id="saveMsg" hidden></p>';
+  wrap.innerHTML = html;
+}
+function updatePickCount() { var n = STATE.sugg.filter(function (s) { return STATE.picked[s.t.id]; }).length; var el = $("#pickCount"); if (el) el.textContent = n + " selected"; }
+function doSave() {
+  var A = STATE.A, msg = $("#saveMsg");
+  var picks = STATE.sugg.filter(function (s) { return STATE.picked[s.t.id]; });
+  if (!picks.length) { showMsg(msg, "Select at least one song first."); return; }
+  if (A.pl.source === "sample") { showMsg(msg, "Demo songs are fictional, so they can't be saved. Connect Spotify and load one of your playlists to save real suggestions.", "err"); return; }
+  if (!SP.token) { showMsg(msg, "Connect Spotify first, then save."); return; }
+  var name = ($("#plName").value || "").trim() || "Musify picks";
+  var btn = document.querySelector('[data-act="save"]'); btn.disabled = true; btn.textContent = "Saving…";
+  savePlaylist(name, picks.map(function (s) { return s.t.uri; }).filter(Boolean)).then(function (p) {
+    msg.innerHTML = 'Saved "' + esc(name) + '" with ' + picks.length + " songs to your Spotify. " + (p.external_urls ? '<a href="' + esc(p.external_urls.spotify) + '" target="_blank" rel="noopener">Open playlist</a>' : "");
+    msg.className = "msg ok"; msg.hidden = false; btn.textContent = "Saved";
+  }).catch(function (e) { showMsg(msg, e.message); btn.disabled = false; btn.textContent = "Save to Spotify"; });
+}
+$("#discWrap").addEventListener("change", function (e) { var id = e.target.getAttribute("data-id"); if (!id) return; if (e.target.checked) STATE.picked[id] = 1; else delete STATE.picked[id]; updatePickCount(); });
+$("#discWrap").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-act]"); if (!b) return;
+  var act = b.getAttribute("data-act");
+  if (act === "save") doSave();
+  else if (act === "more") { STATE.round++; b.disabled = true; b.textContent = "Loading…"; loadSuggestions(); }
+  else if (act === "connect") login();
+  else if (act === "demo") loadA(sampleA());
+});
+$$(".mix button").forEach(function (b) {
+  b.addEventListener("click", function () {
+    STATE.mix = b.getAttribute("data-mix");
+    $$(".mix button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    STATE.picked = {}; if (STATE.cands) drawSuggestions();
+  });
+});
+
+/* ---------- flow ---------- */
+function renderFlow(A) {
+  var el = $("#flowWrap");
+  if (!A.hasFeat) { el.innerHTML = noFeat("smart ordering"); return; }
+  var rows = A.order.map(function (t, i) {
+    return '<tr><td class="mono">' + (i + 1) + '</td><td class="t">' + esc(t.name) + "<small>" + esc(t.artists.join(", ")) + '</small></td><td><i class="dot" style="background:' + MOODS[t.mood].c + '"></i>' + MOODS[t.mood].name + '</td><td class="mono">' + t.energy.toFixed(2) + '</td><td class="mono">' + (t.tempo ? Math.round(t.tempo) : "–") + '</td><td class="mono">' + (t.cam ? t.cam.n + t.cam.l : "–") + "</td></tr>";
+  }).join("");
+  el.innerHTML = '<div class="flowtop"><div><span class="label">Flow score, current order</span><div class="big">' + A.flowBefore + '</div></div><div><span class="label">Flow score, smart order</span><div class="big" style="color:var(--accent)">' + A.flowAfter + '</div></div>' +
+    '<div class="actions"><button class="btn" type="button" id="copyOrder">Copy new order</button><span class="msg ok" id="copied" hidden>Copied</span></div></div>' +
+    '<div class="chart wide">' + flowSVG(A.feat, A.order) + '</div><div class="legend"><span><i style="background:var(--muted)"></i>Current order</span><span><i style="background:var(--accent)"></i>Smart order</span></div>' +
+    '<div class="tlist"><table><thead><tr><th>#</th><th>Track</th><th>Mood</th><th>Energy</th><th>BPM</th><th>Key</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+  $("#copyOrder").addEventListener("click", function () {
+    var txt = A.order.map(function (t, i) { return (i + 1) + ". " + t.name + " - " + t.artists.join(", "); }).join("\n");
+    var ok = function () { var c = $("#copied"); c.hidden = false; setTimeout(function () { c.hidden = true; }, 2000); };
+    try { navigator.clipboard.writeText(txt).then(ok, function () { fallbackCopy(txt); ok(); }); } catch (e) { fallbackCopy(txt); ok(); }
+  });
+}
+function fallbackCopy(txt) { var ta = document.createElement("textarea"); ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (e) {} ta.remove(); }
+
+/* ---------- compare ---------- */
+function cosine(ca, cb) {
+  var ma = {}, mb = {}; ca.forEach(function (g) { ma[g[0]] = g[1]; }); cb.forEach(function (g) { mb[g[0]] = g[1]; });
+  var dot = 0, na = 0, nb = 0; Object.keys(ma).forEach(function (k) { na += ma[k] * ma[k]; if (mb[k]) dot += ma[k] * mb[k]; }); Object.keys(mb).forEach(function (k) { nb += mb[k] * mb[k]; });
+  return na && nb ? dot / Math.sqrt(na * nb) : 0;
+}
+function renderCompare() {
+  var A = STATE.A, B = STATE.B, el = $("#cmpWrap");
+  if (!B) { $("#cmpTitle").textContent = "Compare " + A.pl.title; el.innerHTML = '<p class="hint">No second playlist loaded yet.</p>'; return; }
+  $("#cmpTitle").textContent = A.pl.title + " vs " + B.pl.title;
+  var gs = cosine(A.genreCounts, B.genreCounts);
+  var shA = B.artistCounts.filter(function (a) { return A.artistMap[norm(a[0])]; }).map(function (a) { return a[0]; });
+  var uni = A.artistCounts.length + B.artistCounts.length - shA.length, as = uni ? shA.length / uni : 0;
+  var both = A.hasFeat && B.hasFeat, ss = both ? clamp(1 - dist(A.vec, B.vec) / 0.9, 0, 1) : null;
+  var total = both ? .4 * gs + .15 * as + .45 * ss : .75 * gs + .25 * as;
+  var shG = B.genreCounts.filter(function (g) { return A.genreMap[g[0]]; }).map(function (g) { return g[0]; });
+  var html = '<div class="cmp-head"><div><span class="label">Overall similarity</span><div class="big">' + pct(total) + '<small>%</small></div></div><div class="bars" style="flex:1;min-width:240px" id="cmpBars"></div></div>';
+  if (both) {
+    var rd = [["Danceability", A.avg.dance, B.avg.dance], ["Energy", A.avg.energy, B.avg.energy], ["Positivity", A.avg.valence, B.avg.valence], ["Acousticness", A.avg.acoustic, B.avg.acoustic], ["Tempo", tempoN(A.tempoMean || 105), tempoN(B.tempoMean || 105), Math.round(A.tempoMean || 0) + "", Math.round(B.tempoMean || 0) + ""]];
+    html += '<div class="vs"><div class="vsrow"><span></span><span class="label" style="color:var(--accent)">' + esc(A.pl.title) + '</span><span class="label" style="color:var(--warm)">' + esc(B.pl.title) + "</span></div>" +
+      rd.map(function (r) { return '<div class="vsrow"><span>' + r[0] + '</span><div class="cell"><div class="track"><div class="fill" style="width:' + pct(r[1]) + '%"></div></div><span>' + (r[3] || r[1].toFixed(2)) + '</span></div><div class="cell"><div class="track"><div class="fill b" style="width:' + pct(r[2]) + '%"></div></div><span>' + (r[4] || r[2].toFixed(2)) + "</span></div></div>"; }).join("") + "</div>";
+  }
+  html += '<div><span class="label">Shared genres</span><div class="chips" style="margin-top:8px">' + (shG.length ? shG.slice(0, 12).map(function (g) { return '<span class="chip">' + esc(g) + "</span>"; }).join("") : '<span class="hint">None</span>') + "</div></div>";
+  html += '<div><span class="label">Shared artists</span><div class="chips" style="margin-top:8px">' + (shA.length ? shA.slice(0, 12).map(function (g) { return '<span class="chip">' + esc(g) + "</span>"; }).join("") : '<span class="hint">None</span>') + "</div></div>";
+  el.innerHTML = html;
+  var cb = [["Genre overlap", gs, pct(gs) + "%"], ["Artist overlap", as, pct(as) + "%"]];
+  if (both) cb.push(["Sound similarity", ss, pct(ss) + "%"]);
+  bars($("#cmpBars"), cb, { max: 1 });
+}
+
+/* ---------- tabs ---------- */
+var TABS = ["overview", "taste", "mood", "discover", "flow", "compare", "about"];
+function setTab(name, focus) {
+  if (TABS.indexOf(name) < 0) name = "overview";
+  TABS.forEach(function (t) {
+    var on = t === name, tab = $("#t-" + t);
+    tab.setAttribute("aria-selected", on ? "true" : "false"); tab.tabIndex = on ? 0 : -1;
+    $("#p-" + t).hidden = !on;
+    if (on && focus) tab.focus();
+  });
+  try { history.replaceState(null, "", location.pathname + location.search + "#" + name); } catch (e) {}
+}
+$$(".tab").forEach(function (b) {
+  b.addEventListener("click", function () { setTab(b.getAttribute("data-tab")); });
+  b.addEventListener("keydown", function (e) {
+    var i = TABS.indexOf(b.getAttribute("data-tab"));
+    if (e.key === "ArrowRight") { e.preventDefault(); setTab(TABS[(i + 1) % TABS.length], true); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); setTab(TABS[(i - 1 + TABS.length) % TABS.length], true); }
+  });
+});
+
+/* ---------- loading ---------- */
+function loadA(pl) { showMsg($("#msgA"), ""); STATE.A = analyze(pl); render(); }
+function readFile(file, cb, errEl) {
+  showMsg(errEl, ""); if (!file) return;
+  var fr = new FileReader();
+  fr.onload = function () { try { cb(fromCSV(String(fr.result), file.name)); } catch (e) { showMsg(errEl, e.message); } };
+  fr.onerror = function () { showMsg(errEl, "Couldn't read that file. Try exporting it again."); };
+  fr.readAsText(file);
+}
+$("#btnSample").addEventListener("click", function () { $("#plSelect").value = ""; loadA(sampleA()); });
+$("#fileA").addEventListener("change", function (e) { readFile(e.target.files[0], loadA, $("#msgA")); e.target.value = ""; });
+$("#btnSampleB").addEventListener("click", function () { STATE.B = analyze(sampleB()); renderCompare(); });
+$("#fileB").addEventListener("change", function (e) { readFile(e.target.files[0], function (pl) { STATE.B = analyze(pl); renderCompare(); }, $("#msgB")); e.target.value = ""; });
+$("#btnConnect").addEventListener("click", function () {
+  if (SP.token && SP.me) { SP.token = null; SP.me = null; store.del("musify_tok"); location.replace(REDIRECT + location.hash); return; }
+  if (!liveConfigured()) { showMsg($("#msgA"), "Live Spotify login isn't switched on in this preview. It works on the deployed site once a Spotify Client ID is added. Use the demo playlist or upload a CSV for now."); return; }
+  login();
+});
+$("#plSelect").addEventListener("change", function (e) {
+  var id = e.target.value; if (!id) return;
+  showMsg($("#msgA"), "Loading playlist from Spotify…", "ok");
+  loadLivePlaylist(id).then(loadA).catch(function (err) { showMsg($("#msgA"), err.message); });
+});
+$("#cmpSelect").addEventListener("change", function (e) {
+  var id = e.target.value; if (!id) return;
+  showMsg($("#msgB"), "Loading…", "ok");
+  loadLivePlaylist(id).then(function (pl) { showMsg($("#msgB"), ""); STATE.B = analyze(pl); renderCompare(); }).catch(function (err) { showMsg($("#msgB"), err.message); });
+});
+var dragDepth = 0;
+window.addEventListener("dragenter", function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0) { dragDepth++; document.body.classList.add("dragging"); } });
+window.addEventListener("dragleave", function () { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove("dragging"); });
+window.addEventListener("dragover", function (e) { e.preventDefault(); });
+window.addEventListener("drop", function (e) { e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging"); var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) readFile(f, loadA, $("#msgA")); });
+
+setTab((location.hash || "").replace("#", ""));
+STATE.B = analyze(sampleB());
+loadA(sampleA());
+if (!liveConfigured()) { $("#btnConnect").title = "Available on the deployed site"; }
+initSpotify().then(function (ok) {
+  if (ok && SP.playlists.length) showMsg($("#msgA"), "Connected. Pick one of your playlists from the menu to analyze it.", "ok");
+});
+})();
+</script>
